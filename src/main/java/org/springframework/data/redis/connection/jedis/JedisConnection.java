@@ -106,7 +106,7 @@ public class JedisConnection implements RedisConnection {
 	public JedisConnection(Jedis jedis, Pool<Jedis> pool, int dbIndex) {
 		this.jedis = jedis;
 		// extract underlying connection for batch operations
-		client = (Client) ReflectionUtils.getField(CLIENT_FIELD, jedis);
+		client = jedis.getClient();
 		transaction = new Transaction(client);
 
 		this.pool = pool;
@@ -135,15 +135,9 @@ public class JedisConnection implements RedisConnection {
 	}
 
 	public Object execute(String command, byte[]... args) {
-		Assert.hasText(command, "a valid command needs to be specified");
+		//Assert.hasText(command, "a valid command needs to be specified");
 		try {
-			List<byte[]> mArgs = new ArrayList<byte[]>();
-			if (!ObjectUtils.isEmpty(args)) {
-				Collections.addAll(mArgs, args);
-			}
-
-			Object result = ReflectionUtils.invokeMethod(SEND_COMMAND, client,
-					Command.valueOf(command.trim().toUpperCase()), mArgs.toArray(new byte[mArgs.size()][]));
+			Object result = ReflectionUtils.invokeMethod(SEND_COMMAND, client, Command.valueOf(command), args);
 			if (isQueueing() || isPipelined()) {
 				Object target = (isPipelined() ? pipeline : transaction);
 				ReflectionUtils.invokeMethod(GET_RESPONSE, target, new Builder<Object>() {
@@ -157,7 +151,7 @@ public class JedisConnection implements RedisConnection {
 				});
 			}
 			else {
-				client.getOne();
+                result = client.getOne();
 			}
 			return result;
 		} catch (Exception ex) {
@@ -224,7 +218,7 @@ public class JedisConnection implements RedisConnection {
 
 
 	public boolean isPipelined() {
-		return (pipeline != null);
+		return pipeline != null;
 	}
 
 
@@ -237,6 +231,7 @@ public class JedisConnection implements RedisConnection {
 	public List<Object> closePipeline() {
 		if (pipeline != null) {
 			List<Object> execute = pipeline.syncAndReturnAll();
+            pipeline = null;
 			if (execute != null && !execute.isEmpty()) {
 				Exception cause = null;
 				for (int i = 0; i < execute.size(); i++) {

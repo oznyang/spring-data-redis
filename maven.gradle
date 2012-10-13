@@ -12,6 +12,15 @@ install {
     }
 }
 
+uploadArchives {
+    repositories.mavenDeployer {
+        repository(url: "http://dev.any123.com/nexus/content/repositories/releases/") {
+            authentication(userName: "admin", password: "admin123")
+        }
+        customizePom(pom, project)
+    }
+}
+
 def customizePom(pom, gradleProject) {
     pom.whenConfigured { generatedPom ->
         // respect 'optional' and 'provided' dependencies

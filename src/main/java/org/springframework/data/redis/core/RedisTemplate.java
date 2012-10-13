@@ -25,6 +25,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import org.springframework.dao.DataAccessException;
+import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.data.redis.connection.DataType;
 import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -65,7 +66,7 @@ import org.springframework.util.ClassUtils;
  */
 public class RedisTemplate<K, V> extends RedisAccessor implements RedisOperations<K, V> {
 
-	private boolean exposeConnection = false;
+	private boolean exposeConnection = true;
 	private RedisSerializer<?> defaultSerializer = new JdkSerializationRedisSerializer();
 
 	private RedisSerializer keySerializer = null;
@@ -143,32 +144,36 @@ public class RedisTemplate<K, V> extends RedisAccessor implements RedisOperation
 	 * @param pipeline whether to pipeline or not the connection for the execution 
 	 * @return object returned by the action
 	 */
-	public <T> T execute(RedisCallback<T> action, boolean exposeConnection, boolean pipeline) {
-		Assert.notNull(action, "Callback object must not be null");
+    @SuppressWarnings("unchecked")
+    public <T> T execute(RedisCallback<T> action, boolean exposeConnection, boolean pipeline) {
+		//Assert.notNull(action, "Callback object must not be null");
 
 		RedisConnectionFactory factory = getConnectionFactory();
 		RedisConnection conn = RedisConnectionUtils.getConnection(factory);
 
-		boolean existingConnection = TransactionSynchronizationManager.hasResource(factory);
-		preProcessConnection(conn, existingConnection);
+        boolean existingConnection = TransactionSynchronizationManager.hasResource(factory);
+        RedisConnection conn0 = preProcessConnection(conn, existingConnection);
 
-		boolean pipelineStatus = conn.isPipelined();
-		if (pipeline && !pipelineStatus) {
-			conn.openPipeline();
-		}
+        boolean alreadyPipelined = conn0.isPipelined();
+        boolean pipelinedClosed = false;
+        if (pipeline && !alreadyPipelined) {
+            conn0.openPipeline();
+        }
 
 		try {
-			RedisConnection connToExpose = (exposeConnection ? conn : createRedisConnectionProxy(conn));
-			T result = action.doInRedis(connToExpose);
-
-			// close pipeline
-			if (pipeline && !pipelineStatus) {
-				conn.closePipeline();
-			}
-
-			// TODO: any other connection processing?
+			T result = action.doInRedis(exposeConnection ? conn0 : createRedisConnectionProxy(conn0));
+            if (pipeline && !alreadyPipelined) {
+                if (result != null) {
+                    throw new InvalidDataAccessApiUsageException("Callback cannot returned a non-null value as it gets overwritten by the pipeline");
+                }
+                result = (T) conn0.closePipeline();
+                pipelinedClosed = true;
+            }
 			return postProcessResult(result, conn, existingConnection);
 		} finally {
+            if (pipeline && !alreadyPipelined && !pipelinedClosed) {
+                conn0.closePipeline();
+            }
 			RedisConnectionUtils.releaseConnection(conn, factory);
 		}
 	}

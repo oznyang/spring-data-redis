@@ -63,7 +63,7 @@ public abstract class RedisConnectionUtils {
 	 * @return an active Redis connection
 	 */
 	public static RedisConnection doGetConnection(RedisConnectionFactory factory, boolean allowCreate, boolean bind) {
-		Assert.notNull(factory, "No RedisConnectionFactory specified");
+		//Assert.notNull(factory, "No RedisConnectionFactory specified");
 
 		RedisConnectionHolder connHolder = (RedisConnectionHolder) TransactionSynchronizationManager.getResource(factory);
 		//TODO: investigate tx synchronization
@@ -95,9 +95,9 @@ public abstract class RedisConnectionUtils {
 	 * @param factory the Redis factory that the connection was created with
 	 */
 	public static void releaseConnection(RedisConnection conn, RedisConnectionFactory factory) {
-		if (conn == null) {
-			return;
-		}
+		//if (conn == null) {
+		//	return;
+		//}
 		// Only release non-transactional/non-bound connections.
 		if (!isConnectionTransactional(conn, factory)) {
 			if (log.isDebugEnabled()) {
@@ -128,9 +128,9 @@ public abstract class RedisConnectionUtils {
 	 * @return whether the connection is transactional or not
 	 */
 	public static boolean isConnectionTransactional(RedisConnection conn, RedisConnectionFactory connFactory) {
-		if (connFactory == null) {
-			return false;
-		}
+		//if (connFactory == null) {
+		//	return false;
+		//}
 		RedisConnectionHolder connHolder = (RedisConnectionHolder) TransactionSynchronizationManager.getResource(connFactory);
 		return (connHolder != null && conn == connHolder.getConnection());
 	}
