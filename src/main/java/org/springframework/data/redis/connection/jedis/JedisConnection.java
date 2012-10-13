@@ -230,8 +230,12 @@ public class JedisConnection implements RedisConnection {
 
 	public List<Object> closePipeline() {
 		if (pipeline != null) {
-			List<Object> execute = pipeline.syncAndReturnAll();
-            pipeline = null;
+            List<Object> execute;
+            try {
+                execute = pipeline.syncAndReturnAll();
+            } finally {
+                pipeline = null;
+            }
 			if (execute != null && !execute.isEmpty()) {
 				Exception cause = null;
 				for (int i = 0; i < execute.size(); i++) {
